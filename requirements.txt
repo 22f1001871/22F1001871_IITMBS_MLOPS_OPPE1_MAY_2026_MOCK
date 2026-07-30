@@ -4,5 +4,5 @@ scikit-learn
 joblib
 pytest
 mlflow
-dvc[gcs]
+dvc[gs]
 google-cloud-storage

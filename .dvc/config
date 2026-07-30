@@ -1,4 +1,4 @@
 [core]
     remote = myremote
 ['remote "myremote"']
-    url = gs://iitm_mock_1/dvc
+    url = gs://iitm-mlops-oppe-mock/one/dvc

@@ -1,168 +1,201 @@
 import os
 import joblib
-import numpy as np
 import pandas as pd
 import mlflow
+import mlflow.sklearn
 
-from sklearn.model_selection import train_test_split
+from mlflow import MlflowClient
+
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+
+
+############################################################
+# MLFLOW
+############################################################
+
+tracking_uri = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    "http://35.225.70.9:5000"
 )
 
-####################################################
-# LABEL ENCODING
-####################################################
+mlflow.set_tracking_uri(tracking_uri)
+mlflow.set_experiment("OPPE_MOCK_1")
 
-LABEL_MAP = {
-    "setosa": 0,
-    "versicolor": 1,
-    "virginica": 2
-}
+client = MlflowClient()
 
+############################################################
+# HYPERPARAMETERS
+############################################################
 
-####################################################
-# CUSTOM IMPUTATION
-####################################################
+depths = [3, 5, 7, None]
+criterions = ["gini", "entropy"]
 
-def impute_last10_same_species(df):
+############################################################
+# GLOBAL BEST MODEL
+############################################################
 
-    df = df.copy()
-
-    feature_cols = [
-        "sepal_length",
-        "sepal_width",
-        "petal_length",
-        "petal_width"
-    ]
-
-    for feature in feature_cols:
-
-        for idx in df.index:
-
-            if pd.isna(df.loc[idx, feature]):
-
-                species = df.loc[idx, "species"]
-
-                previous_rows = df.loc[:idx-1]
-
-                previous_rows = previous_rows[
-                    previous_rows["species"] == species
-                ]
-
-                values = (
-                    previous_rows[feature]
-                    .dropna()
-                    .tail(10)
-                )
-
-                if len(values) > 0:
-                    df.loc[idx, feature] = values.mean()
-
-                else:
-                    # fallback if no previous samples exist
-                    df.loc[idx, feature] = df[
-                        df["species"] == species
-                    ][feature].mean()
-
-    return df
+best_accuracy = 0
+best_model = None
+best_version = None
 
 
-####################################################
+############################################################
 # TRAINING FUNCTION
-####################################################
+############################################################
 
 def train_model(df, iteration):
 
+    global best_accuracy
+    global best_model
+    global best_version
+
     print(f"\n========== ITERATION {iteration} ==========\n")
-
-    df = impute_last10_same_species(df)
-
-    df["target"] = df["species"].map(LABEL_MAP)
 
     X = df[
         [
             "sepal_length",
             "sepal_width",
             "petal_length",
-            "petal_width"
+            "petal_width",
         ]
     ]
 
-    y = df["target"]
+    y = df["species"]
 
     X_train, X_val, y_train, y_val = train_test_split(
         X,
         y,
         test_size=0.2,
         random_state=42,
-        stratify=y
+        stratify=y,
     )
-
-    model = DecisionTreeClassifier(
-        random_state=42
-    )
-
-    model.fit(X_train, y_train)
-
-    predictions = model.predict(X_val)
-
-    accuracy = accuracy_score(
-        y_val,
-        predictions
-    )
-
-    print(f"Accuracy : {accuracy:.4f}")
-
-    print("\nClassification Report\n")
-
-    print(
-        classification_report(
-            y_val,
-            predictions
-        )
-    )
-
+    
     os.makedirs("models", exist_ok=True)
 
-    joblib.dump(
-        model,
-        f"models/model_iteration_{iteration}.joblib"
-    )
+    for depth in depths:
 
-    return model
+        for criterion in criterions:
+
+            run_name = f"Iteration_{iteration}_depth_{depth}_{criterion}"
+
+            with mlflow.start_run(run_name=run_name):
+
+                model = DecisionTreeClassifier(
+                    max_depth=depth,
+                    criterion=criterion,
+                    random_state=42,
+                )
+
+                model.fit(X_train, y_train)
+
+                predictions = model.predict(X_val)
+
+                accuracy = accuracy_score(
+                    y_val,
+                    predictions,
+                )
+
+                report = classification_report(
+                    y_val,
+                    predictions,
+                )
+
+                print("=" * 60)
+                print(run_name)
+                print(f"Accuracy : {accuracy:.4f}")
+                print(report)
+
+                ################################################
+                # PARAMETERS
+                ################################################
+
+                mlflow.log_param("iteration", iteration)
+                mlflow.log_param("max_depth", depth)
+                mlflow.log_param("criterion", criterion)
+
+                ################################################
+                # METRICS
+                ################################################
+
+                mlflow.log_metric("accuracy", accuracy)
+
+                ################################################
+                # REGISTER MODEL
+                ################################################
+
+                model_info = mlflow.sklearn.log_model(
+                    sk_model=model,
+                    name="model",
+                    registered_model_name="oppe_mock_1",
+                )
+
+                ################################################
+                # BEST MODEL
+                ################################################
+
+                if accuracy > best_accuracy:
+
+                    best_accuracy = accuracy
+                    best_model = model
+                    best_version = model_info.registered_model_version
+
+    print(f"\nBest Accuracy So Far : {best_accuracy:.4f}")
 
 
-####################################################
+############################################################
 # MAIN
-####################################################
+############################################################
 
 if __name__ == "__main__":
 
     iris_v0 = pd.read_csv("data/iris_v0.csv")
-
     iris_v1 = pd.read_csv("data/iris_v1.csv")
 
-    ################################################
+    ########################################################
     # ITERATION 1
-    ################################################
+    ########################################################
 
     train_model(
         iris_v0,
-        iteration=1
+        iteration=1,
     )
 
-    ################################################
+    ########################################################
     # ITERATION 2
-    ################################################
+    ########################################################
 
     merged = pd.concat(
         [iris_v0, iris_v1],
-        ignore_index=True
+        ignore_index=True,
     )
 
     train_model(
         merged,
-        iteration=2
+        iteration=2,
     )
+
+    ########################################################
+    # SAVE BEST MODEL
+    ########################################################
+
+    joblib.dump(
+        best_model,
+        "models/best_model.joblib",
+    )
+
+    ########################################################
+    # SET CHAMPION ALIAS
+    ########################################################
+
+    client.set_registered_model_alias(
+        name="oppe_mock_1",
+        alias="champion",
+        version=best_version,
+    )
+
+    print("\n" + "=" * 60)
+    print(f"BEST ACCURACY : {best_accuracy:.4f}")
+    print(f"CHAMPION VERSION : {best_version}")
+    print("=" * 60)

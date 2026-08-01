@@ -3,7 +3,7 @@ from datetime import timedelta
 from feast import Entity, FeatureView, Field
 from feast import FileSource
 from feast.types import Float32
-from feast.types import Int64
+
 
 iris_source = FileSource(
     path="data/iris.parquet",
@@ -14,7 +14,6 @@ iris_source = FileSource(
 iris = Entity(
     name="iris_id",
     join_keys=["iris_id"],
-    value_type=Int64,
 )
 
 iris_features = FeatureView(

@@ -6,3 +6,4 @@ pytest
 mlflow
 dvc[gs]
 google-cloud-storage
+feast

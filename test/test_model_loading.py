@@ -4,7 +4,7 @@ import mlflow.pyfunc
 
 tracking_uri = os.getenv(
     "MLFLOW_TRACKING_URI",
-    "http://35.225.70.9:5000"
+    "http://34.70.155.232:5000"
 )
 
 mlflow.set_tracking_uri(tracking_uri)

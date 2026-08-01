@@ -94,7 +94,7 @@ jobs:
 
     - name: Run Pytest
       run: |
-        pytest -v
+        pytest -vv
 
     #################################################
     # Create CML Report

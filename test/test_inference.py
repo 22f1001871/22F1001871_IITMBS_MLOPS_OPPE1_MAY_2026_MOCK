@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score
 
 import mlflow
 
-mlflow.set_tracking_uri("http:/34.70.155.232:5000")
+mlflow.set_tracking_uri("http://34.70.155.232:5000")
 
 
 def test_model_prediction():

@@ -86,7 +86,7 @@ jobs:
 
     - name: Train Model
       run: |
-        python src/train.py
+        python train.py
 
     #################################################
     # Run Tests

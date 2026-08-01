@@ -17,17 +17,29 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MLFLOW_TRACKING_URI: http://35.225.70.9:5000
+      MLFLOW_TRACKING_URI: http://34.70.155.232:5000
 
     steps:
 
+    #################################################
+    # Checkout
+    #################################################
+
     - name: Checkout Repository
       uses: actions/checkout@v4
+
+    #################################################
+    # Python
+    #################################################
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+
+    #################################################
+    # Install dependencies
+    #################################################
 
     - name: Install Dependencies
       run: |
@@ -55,9 +67,49 @@ jobs:
         dvc pull
 
     #################################################
+    # Feast
+    #################################################
+
+    - name: Apply Feast Definitions
+      working-directory: feature_repo
+      run: |
+        feast apply
+
+    - name: Materialize Features
+      working-directory: feature_repo
+      run: |
+        feast materialize-incremental $(date -u +"%Y-%m-%dT%H:%M:%S")
+
+    #################################################
+    # Train (optional)
+    #################################################
+
+    - name: Train Model
+      run: |
+        python src/train.py
+
+    #################################################
     # Run Tests
     #################################################
 
     - name: Run Pytest
       run: |
         pytest -v
+
+    #################################################
+    # Create CML Report
+    #################################################
+
+    - name: Generate CML Report
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "# CI Report" > report.md
+        echo "" >> report.md
+        echo "## Pipeline Status" >> report.md
+        echo "- DVC Pull: Success" >> report.md
+        echo "- Feast Apply: Success" >> report.md
+        echo "- Feast Materialization: Success" >> report.md
+        echo "- Pytest: Passed" >> report.md
+
+        cml comment create report.md

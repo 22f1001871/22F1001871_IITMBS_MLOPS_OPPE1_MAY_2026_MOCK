@@ -236,9 +236,10 @@ __pycache__/
 
 # Model/Data artifacts tracked by DVC
 *.joblib
-!models/model.joblib
+*.joblib
 *.pkl
 *.csv
+*.db
 
 mlruns/
 

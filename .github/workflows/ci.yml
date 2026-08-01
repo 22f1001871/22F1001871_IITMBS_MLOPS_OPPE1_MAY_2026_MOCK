@@ -10,6 +10,9 @@ on:
     branches:
       - main
       - master
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   test:
@@ -102,7 +105,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-          node-version: '18'
+        node-version: '18'
 
     - name: Install CML
       run: npm install -g @dvcorg/cml
